@@ -5,11 +5,14 @@ clear;
 addpath('STLRead/')
 
 % Read the stl
-stlFileName = 'Fleece_hole_trial.stl';
+stlFileName = 'data/Fleece_mesh.stl';
 [F, V, ~] = stlread(stlFileName);
-
+nearby = false;
+%%
 % Read the image and preprocess it
-img = imread('first_frame.png');
+img = imread('data/fleece_no_flash.JPG');
+scale = .5;
+img = imresize(img, scale);
 
 % Rotate image to match stl
 img = rot90(img);
@@ -17,7 +20,14 @@ img = flip(img ,2);
 img = flip(img ,1);
 
 % Mask out the background
-[binaryImage, img] = extract_fleece(img);
+% [binaryImage, img] = extract_fleece(img);
+
+binaryImage = imread('data/mask_no_flash.png');
+binaryImage = imresize(binaryImage, scale);
+
+binaryImage = rot90(binaryImage);
+binaryImage = flip(binaryImage ,2);
+binaryImage = flip(binaryImage ,1);
 
 % Extract largest blob from image
 binaryImage = bwareafilt(binaryImage, 1);
@@ -37,7 +47,9 @@ grayImg = imadjust(grayImg);
 %% Vector Direction of all image
 
 % Calculate gradient vectors using Sobel filters
-[Gx, Gy] = imgradientxy(double(grayImg));
+% [Gx, Gy] = imgradientxy(double(grayImg));
+[Gx, Gy] = imgradientxy(im2double(grayImg));
+
 
 % Calculate the size of the gradient image
 [height, width] = size(Gx);
@@ -79,19 +91,19 @@ end
 % Display quiver plot with longer quivers
 % quiverScale = 10;  % Adjust this value to control quiver length
 % quiver(x(:) * windowSize - windowSize/2, y(:) * windowSize - windowSize/2, avgGx(:) * quiverScale, avgGy(:) * quiverScale, 'Color', 'r');
-% 
+%
 % hold off;
 % drawnow;
 
 %% Superpixel
 
 % Use superpixel to find the boundary and directions
-[L, N] = superpixels(img, 1000);
+[L, N] = superpixels(img, 1000,'Method','slic0');
 
 % Create masks of areas inside superpixel
 output_masks = cell(N, 1);
 
-% Extract areas from superpixel 
+% Extract areas from superpixel
 stats = regionprops(L, 'PixelIdxList', 'PixelList','BoundingBox');
 
 % Not good to solve like this but might come back to it later
@@ -132,7 +144,7 @@ avgGyNormalized = zeros(numRegions, 1);
 
 figure;
 BW = boundarymask(L);
-imshow(imoverlay(img, BW, 'cyan'), 'InitialMagnification', 67);
+imshow(imoverlay(img, BW, 'cyan'));
 hold on;
 
 % Loop through each section
@@ -147,11 +159,11 @@ for i = 1:numRegions
     % Compute average Gx, Gy for this section
     avgGx = mean(sectionGx);
     avgGy = mean(sectionGy);
-    
+
     % Compute average vector direction
     avgDirection = atan2(avgGy, avgGx);
-    
-    % Compute the direction and save 
+
+    % Compute the direction and save
     maxMagnitude = max(sqrt(avgGx^2 + avgGy^2), 1e-6); % Avoid division by zero
     avgGxNormalized(i) = avgGx / maxMagnitude;
     avgGyNormalized(i) = avgGy / maxMagnitude;
@@ -214,7 +226,7 @@ translatedAndScaledV = ScaledV+ repmat(translationVector, size(V, 1), 1);
 % title('Translated and Scaled STL Model');
 % rotate3d on;
 
-%% Extract the stl of each of the masks and save it 
+%% Extract the stl of each of the masks and save it
 % Load your STL file (replace with your file path)
 
 V = translatedAndScaledV;
@@ -231,18 +243,29 @@ for i = 1:size(output_masks,1)
     % Check which vertices lie inside the polygon
     isVertexInside = inpolygon(V(:, 1), V(:, 3), polygon(:, 2), polygon(:, 1));
 
-    % Include vertices that are nearby the polygon boundary
-    threshold = 20; 
-    distances = pdist2(V(:, [1 3]), polygon(:, [2 1]));
-    minDistances = min(distances, [], 2);
-    isVertexNearby = minDistances < threshold;
-    isVertexInside = isVertexInside | isVertexNearby;
+    if nearby
 
-    % Find the faces that are entirely inside the polygon
-    isFaceInside = all(isVertexInside(F), 2);
+        % Include vertices that are nearby the polygon boundary
+        threshold = 1;
+        distances = pdist2(V(:, [1 3]), polygon(:, [2 1]));
+        minDistances = min(distances, [], 2);
+        isVertexNearby = minDistances < threshold;
+        isVertexInside = isVertexInside | isVertexNearby;
 
-    insideFaces = F(isFaceInside, :);
-    insideVertices = V(isVertexInside, :);
+        % Find the faces that are entirely inside the polygon
+        isFaceInside = all(isVertexInside(F), 2);
+
+        insideFaces = F(isFaceInside, :);
+        insideVertices = V(isVertexInside, :);
+
+    else
+        % Find the faces that are entirely inside the polygon
+        isFaceInside = all(isVertexInside(F), 2);
+
+        insideFaces = F(isFaceInside, :);
+        insideVertices = V(isVertexInside, :);
+    end
+
 
     % Update the indices in insideFaces to match the new vertex list
     [~, newIndices] = ismember(insideFaces, find(isVertexInside));
@@ -258,15 +281,14 @@ for i = 1:size(output_masks,1)
     end
 
 
-%     figure;
-%     trisurf(insideFaces, invScaledVertices(:, 1), invScaledVertices(:, 2), invScaledVertices(:, 3), 'FaceColor', 'cyan');
-%     axis equal;
-%     xlabel('X');
-%     ylabel('Y'); % This will be the Z-axis of the STL
-%     zlabel('Z'); % This will be the new Y-axis of the image
+    %     figure;
+    %     trisurf(insideFaces, invScaledVertices(:, 1), invScaledVertices(:, 2), invScaledVertices(:, 3), 'FaceColor', 'cyan');
+    %     axis equal;
+    %     xlabel('X');
+    %     ylabel('Y'); % This will be the Z-axis of the STL
+    %     zlabel('Z'); % This will be the new Y-axis of the image
 
 end
-
 %% Save fibre direction of each of the sections
 
 % Empty vector
@@ -277,11 +299,4 @@ for i =1:size(avgGxNormalized,1)
     direction(i,:) = [avgGxNormalized(i), 0 , avgGyNormalized(i)];
 end
 
-% Save json
-json_name = 'cutfiles/fibre_direction.json';
-json.direction = direction;
-json = jsonencode(json);
-[fid, msg] = fopen(json_name,'wt');
-fprintf(fid,'%s\n',json);
-fclose(fid);
-clear json
+csvwrite("cutfiles/fibre_direction.csv",direction);
