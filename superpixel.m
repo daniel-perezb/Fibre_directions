@@ -7,7 +7,7 @@ addpath('STLRead/')
 % Read the stl
 stlFileName = 'data/Fleece_mesh.stl';
 [F, V, ~] = stlread(stlFileName);
-nearby = false;
+nearby = true;
 %%
 % Read the image and preprocess it
 img = imread('data/fleece_no_flash.JPG');
@@ -47,8 +47,8 @@ grayImg = imadjust(grayImg);
 %% Vector Direction of all image
 
 % Calculate gradient vectors using Sobel filters
-% [Gx, Gy] = imgradientxy(double(grayImg));
-[Gx, Gy] = imgradientxy(im2double(grayImg));
+[Gx, Gy] = gradient_im(img,'sobel',5);
+% [Gx, Gy] = imgradientxy(im2double(grayImg));
 
 
 % Calculate the size of the gradient image
@@ -98,7 +98,7 @@ end
 %% Superpixel
 
 % Use superpixel to find the boundary and directions
-[L, N] = superpixels(img, 1000,'Method','slic0');
+[L, N] = superpixels(img, 2500, 'Method','slic0');
 
 % Create masks of areas inside superpixel
 output_masks = cell(N, 1);
@@ -132,11 +132,12 @@ new_stats(1) = [];
 %% Get vector direction inside each of the sections
 
 stats = new_stats;
+
 % Get the number of regions
 numRegions = numel(stats);
 
-quiverScale = 1.2;
-arrowLineWidth = 1.2;  % Adjust this value to control the line width
+quiverScale = 15;
+arrowLineWidth = 2;
 
 % Empty variables
 avgGxNormalized = zeros(numRegions, 1);
@@ -197,7 +198,7 @@ maxY = boundingBox(2) + boundingBox(4);
 imageCentroid = [centroid(1), 0, centroid(2)]; % Swap Y and Z coordinates for image centroid
 
 % Calculate scaling factors
-imageWidth = maxX - minX; % Width of the image blob
+imageWidth = maxX - minX; 
 imageHeight = 0; % Ignore the Y-axis for scaling
 imageDepth = maxY - minY; % Depth of the image blob (corresponds to the Z-axis of STL)
 
@@ -227,9 +228,14 @@ translatedAndScaledV = ScaledV+ repmat(translationVector, size(V, 1), 1);
 % rotate3d on;
 
 %% Extract the stl of each of the masks and save it
-% Load your STL file (replace with your file path)
 
+% Create variables
 V = translatedAndScaledV;
+batch_size = 1000;
+num_ver = zeros(size(output_masks,1),1);
+
+% Adjust based on your memory capacity
+num_batches = ceil(size(V, 1) / batch_size);
 
 % Assuming masks is a cell array where each element is a 2D logical array representing a mask
 for i = 1:size(output_masks,1)
@@ -245,11 +251,19 @@ for i = 1:size(output_masks,1)
 
     if nearby
 
-        % Include vertices that are nearby the polygon boundary
-        threshold = 1;
-        distances = pdist2(V(:, [1 3]), polygon(:, [2 1]));
-        minDistances = min(distances, [], 2);
-        isVertexNearby = minDistances < threshold;
+        isVertexNearby = false(size(V, 1), 1);
+        threshold = 6; 
+
+        for batch_idx = 1:num_batches
+            start_idx = (batch_idx - 1) * batch_size + 1;
+            end_idx = min(batch_idx * batch_size, size(V, 1));
+
+            batch_vertices = V(start_idx:end_idx, [1 3]);
+            distances = pdist2(batch_vertices, polygon(:, [2 1]));
+            minDistances = min(distances, [], 2);
+            isVertexNearby(start_idx:end_idx) = minDistances < threshold;
+        end
+
         isVertexInside = isVertexInside | isVertexNearby;
 
         % Find the faces that are entirely inside the polygon
@@ -273,12 +287,12 @@ for i = 1:size(output_masks,1)
 
     invTranslatedVertices = insideVertices - repmat(translationVector, size(insideVertices, 1), 1);
     invScaledVertices = invTranslatedVertices ./ scalingFactors;
-
-    if isempty(insideFaces) == 1
-        continue
-    else
-        stlwrite(sprintf('cutfiles/file_%d.stl',i),insideFaces,invScaledVertices,'mode','ascii');
-    end
+    
+%     if isempty(insideFaces) == 1 || size(insideFaces,1) < 3
+%         continue
+%     else
+%         stlwrite(sprintf('cutfiles/file_%d.stl',i),insideFaces,invScaledVertices,'mode','ascii');
+%     end
 
 
     %     figure;
@@ -287,6 +301,7 @@ for i = 1:size(output_masks,1)
     %     xlabel('X');
     %     ylabel('Y'); % This will be the Z-axis of the STL
     %     zlabel('Z'); % This will be the new Y-axis of the image
+    num_ver(i,1) = size(insideFaces,1); 
 
 end
 %% Save fibre direction of each of the sections

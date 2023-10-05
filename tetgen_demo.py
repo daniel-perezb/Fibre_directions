@@ -25,7 +25,7 @@ if __name__=="__main__":
     mesh_vertices = np.asarray(mesh.vertices)
     tet = tetgen.TetGen(mesh_vertices, mesh_triangles)
     #tet.make_manifold()
-    tet.tetrahedralize(order=1, mindihedral=20, minratio=1.5)
+    tet.tetrahedralize(order=1, mindihedral=10, minratio=1.5)
 
     # get the tetrahedra faces and points
     grid = tet.grid
@@ -54,3 +54,4 @@ if __name__=="__main__":
     tet_mesh.triangles = o3d.utility.Vector3iVector(tet_faces)
     tet_mesh.compute_vertex_normals()
     o3d.io.write_triangle_mesh("Fleece_mesh.stl", tet_mesh)
+    print("New mesh saved")
