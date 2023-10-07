@@ -48,3 +48,8 @@ cutfiles/*
 !cutfiles/
 data/*
 !data/
+Data/*
+!Data/
+build/*
+!build/
+
