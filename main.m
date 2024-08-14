@@ -5,12 +5,12 @@ clear;
 addpath('STLRead/')
 
 % Read the stl
-stlFileName = 'data/first_frame.stl';
+stlFileName = 'Fleece_stl.stl';
 [F, V, ~] = stlread(stlFileName);
 nearby = true;
 %%
 % Read the image and preprocess it
-img = imread('data/first_frame.png');
+img = imread('first_frame.png');
 scale = 1;
 img = imresize(img, scale);
 
@@ -20,11 +20,11 @@ img = rot90(img);
 % img = flip(img ,1);
 
 % Mask out the background
-% [binaryImage, img] = extract_fleece(img);
+[binaryImage, img] = extract_fleece(img);
 
-binaryImage = imread('data/frame_1_mask.png');
-binaryImage = im2bw(binaryImage);
-binaryImage = imresize(binaryImage, scale);
+% binaryImage = imread('frame_1_mask.png');
+% binaryImage = im2bw(binaryImage);
+% binaryImage = imresize(binaryImage, scale);
 
  binaryImage = rot90(binaryImage);
 % binaryImage = flip(binaryImage ,2);
