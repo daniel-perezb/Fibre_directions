@@ -5,32 +5,33 @@ clear;
 addpath('STLRead/')
 
 % Read the stl
-stlFileName = 'data/Fleece_mesh.stl';
+stlFileName = 'data/first_frame.stl';
 [F, V, ~] = stlread(stlFileName);
 nearby = true;
 %%
 % Read the image and preprocess it
-img = imread('data/fleece_no_flash.JPG');
-scale = .5;
+img = imread('data/first_frame.png');
+scale = 1;
 img = imresize(img, scale);
 
 % Rotate image to match stl
 img = rot90(img);
-img = flip(img ,2);
-img = flip(img ,1);
+% img = flip(img ,2);
+% img = flip(img ,1);
 
 % Mask out the background
 % [binaryImage, img] = extract_fleece(img);
 
-binaryImage = imread('data/mask_no_flash.png');
+binaryImage = imread('data/frame_1_mask.png');
+binaryImage = im2bw(binaryImage);
 binaryImage = imresize(binaryImage, scale);
 
-binaryImage = rot90(binaryImage);
-binaryImage = flip(binaryImage ,2);
-binaryImage = flip(binaryImage ,1);
+ binaryImage = rot90(binaryImage);
+% binaryImage = flip(binaryImage ,2);
+% binaryImage = flip(binaryImage ,1);
 
 % Extract largest blob from image
-binaryImage = bwareafilt(binaryImage, 1);
+% binaryImage = bwareafilt(binaryImage, 1);
 
 % Save Mask for later
 mask = binaryImage;
@@ -43,6 +44,24 @@ grayImg = rgb2gray(img);
 
 % Enhance Image to make it easier to find edges
 grayImg = imadjust(grayImg);
+
+% Check aixs match 
+% figure;
+% trisurf(F, V(:, 1), V(:, 2), V(:, 3), 'FaceColor', 'cyan');
+% axis equal;
+% xlabel('X');
+% ylabel('Y'); % This will be the Z-axis of the STL
+% zlabel('Z'); % This will be the new Y-axis of the image
+% title('Translated and Scaled STL Model');
+% rotate3d on;
+% drawnow
+
+
+figure
+imshow(img)
+% set(gca,'YDir','normal')
+axis on
+
 
 %% Vector Direction of all image
 
@@ -80,25 +99,36 @@ for i = 1:windowSize:height
     end
 end
 
-% Visualize the averaged gradient vectors using a quiver plot
-% figure;
-% imshow(grayImg);
-% hold on;
+
 
 % Create grids of coordinates for quiver plot using the size of avgGx and avgGy
 [x, y] = meshgrid(1:size(avgGx, 2), 1:size(avgGx, 1));
 
-% Display quiver plot with longer quivers
+
+% Visualize the averaged gradient vectors using a quiver plot
+% figure;
+% imshow(grayImg);
+% hold on;
+% 
+% % Display quiver plot with longer quivers
 % quiverScale = 10;  % Adjust this value to control quiver length
 % quiver(x(:) * windowSize - windowSize/2, y(:) * windowSize - windowSize/2, avgGx(:) * quiverScale, avgGy(:) * quiverScale, 'Color', 'r');
-%
+% 
 % hold off;
 % drawnow;
+
+
+
+
+%%
+[L, ~] = superpixels(img, 2400, 'Method','slic0','Compactness',5);
+BW = boundarymask(L);
+imshow(imoverlay(grayImg, BW, 'cyan'));
 
 %% Superpixel
 
 % Use superpixel to find the boundary and directions
-[L, N] = superpixels(img, 2500, 'Method','slic0');
+[L, N] = superpixels(img, 2400, 'Method','slic0','Compactness',5);
 
 % Create masks of areas inside superpixel
 output_masks = cell(N, 1);
@@ -129,23 +159,28 @@ output_masks = output_masks(~cellfun('isempty',output_masks));
 % Delete first section
 new_stats(1) = [];
 
-%% Get vector direction inside each of the sections
+% Get vector direction inside each of the sections
 
 stats = new_stats;
 
 % Get the number of regions
 numRegions = numel(stats);
 
-quiverScale = 15;
-arrowLineWidth = 2;
+quiverScale = 20;
+arrowLineWidth = 7;
 
 % Empty variables
 avgGxNormalized = zeros(numRegions, 1);
 avgGyNormalized = zeros(numRegions, 1);
 
-figure;
-BW = boundarymask(L);
-imshow(imoverlay(img, BW, 'cyan'));
+% figure;
+% BW = boundarymask(L);
+% imshow(imoverlay(grayImg, BW, 'cyan'));
+% hold on;
+
+se = strel('line', 2, 12);  % Create a structuring element (you can adjust the size and shape)
+BW_thin = imerode(BW, se);  % Erode the mask
+imshow(imoverlay(grayImg, BW_thin, 'cyan'));
 hold on;
 
 % Loop through each section
@@ -202,9 +237,10 @@ imageWidth = maxX - minX;
 imageHeight = 0; % Ignore the Y-axis for scaling
 imageDepth = maxY - minY; % Depth of the image blob (corresponds to the Z-axis of STL)
 
+threshold = 500;
 stlDimensions = max(V) - min(V); % Dimensions of the entire STL model
 maxScaleFactor = max(imageWidth / stlDimensions(1), imageDepth / stlDimensions(3));
-scalingFactors = [maxScaleFactor, maxScaleFactor, maxScaleFactor];
+scalingFactors = [maxScaleFactor-threshold+500, maxScaleFactor-threshold, maxScaleFactor-threshold];
 
 
 % Apply scaling to the STL model
@@ -216,16 +252,20 @@ translationVector = imageCentroid - stlCentroid;
 
 translatedAndScaledV = ScaledV+ repmat(translationVector, size(V, 1), 1);
 
+% Save scaling facotrs for future use
+T = table(scalingFactors, translationVector, 'VariableNames', {'ScaleFactor', 'Translation'});
+writetable(T, 'data/test4/scale_values.txt');
 
 % % Plot the translated and scaled STL model
-% figure;
-% trisurf(F, translatedAndScaledV(:, 1), translatedAndScaledV(:, 2), translatedAndScaledV(:, 3), 'FaceColor', 'cyan');
-% axis equal;
-% xlabel('X');
-% ylabel('Y'); % This will be the Z-axis of the STL
-% zlabel('Z'); % This will be the new Y-axis of the image
-% title('Translated and Scaled STL Model');
-% rotate3d on;
+figure;
+trisurf(F, translatedAndScaledV(:, 1), translatedAndScaledV(:, 2), translatedAndScaledV(:, 3), 'FaceColor', 'cyan');
+axis equal;
+xlabel('X');
+ylabel('Y'); % This will be the Z-axis of the STL
+zlabel('Z'); % This will be the new Y-axis of the image
+title('Translated and Scaled STL Model');
+rotate3d on;
+
 
 %% Extract the stl of each of the masks and save it
 
@@ -252,7 +292,7 @@ for i = 1:size(output_masks,1)
     if nearby
 
         isVertexNearby = false(size(V, 1), 1);
-        threshold = 6; 
+        threshold = 50; 
 
         for batch_idx = 1:num_batches
             start_idx = (batch_idx - 1) * batch_size + 1;
@@ -288,11 +328,11 @@ for i = 1:size(output_masks,1)
     invTranslatedVertices = insideVertices - repmat(translationVector, size(insideVertices, 1), 1);
     invScaledVertices = invTranslatedVertices ./ scalingFactors;
     
-%     if isempty(insideFaces) == 1 || size(insideFaces,1) < 3
-%         continue
-%     else
-%         stlwrite(sprintf('cutfiles/file_%d.stl',i),insideFaces,invScaledVertices,'mode','ascii');
-%     end
+    if isempty(insideFaces) == 1 || size(insideFaces,1) < 3
+        continue
+    else
+        stlwrite(sprintf('data/test4/cutfiles/file_%d.stl',i),insideFaces,invScaledVertices,'mode','ascii');
+    end
 
 
     %     figure;
@@ -314,4 +354,5 @@ for i =1:size(avgGxNormalized,1)
     direction(i,:) = [avgGxNormalized(i), 0 , avgGyNormalized(i)];
 end
 
-csvwrite("cutfiles/fibre_direction.csv",direction);
+csvwrite("data/test4/cutfiles/fibre_direction.csv",direction);
+csvwrite("data/test4/cutfiles/size_vertices.csv",num_ver);

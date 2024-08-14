@@ -19,13 +19,13 @@ while IFS= read -r targeted_num_v; do
 
     if [ -f "$stl_file" ]; then
         # Calculate the adjusted targeted-num-v as a percentage out of 500,000
-        adjusted_targeted_num_v=$((targeted_num_v * 500000 / 1000000))
+        
 
         # Run the TetWild command with the adjusted targeted-num-v
-        TetWild "$stl_file" "$mesh_file" --targeted-num-v "$adjusted_targeted_num_v"
+        TetWild "$stl_file" "$mesh_file" --targeted-num-v 800
 
-        echo "Processed: $stl_file with targeted-num-v = $adjusted_targeted_num_v"
-    fi
+        echo "Processed: $stl_file with targeted-num-v = 800"
+   fi
 
     # Increment the STL file number
     ((stl_index++))
