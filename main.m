@@ -20,18 +20,21 @@ img = rot90(img);
 % img = flip(img ,1);
 
 % Mask out the background
-[binaryImage, img] = extract_fleece(img);
+[binaryImage, ~] = extract_fleece(img);
 
-% binaryImage = imread('frame_1_mask.png');
+ % binaryImage = imread('frame_1_mask.png');
 % binaryImage = im2bw(binaryImage);
 % binaryImage = imresize(binaryImage, scale);
 
- binaryImage = rot90(binaryImage);
+% binaryImage = rot90(binaryImage);
 % binaryImage = flip(binaryImage ,2);
 % binaryImage = flip(binaryImage ,1);
 
 % Extract largest blob from image
-% binaryImage = bwareafilt(binaryImage, 1);
+binaryImage = bwareafilt(binaryImage, 1);
+
+% Fill in holes
+ binaryImage = imfill(binaryImage,'holes');
 
 % Save Mask for later
 mask = binaryImage;
@@ -106,16 +109,16 @@ end
 
 
 % Visualize the averaged gradient vectors using a quiver plot
-% figure;
-% imshow(grayImg);
-% hold on;
-% 
-% % Display quiver plot with longer quivers
-% quiverScale = 10;  % Adjust this value to control quiver length
-% quiver(x(:) * windowSize - windowSize/2, y(:) * windowSize - windowSize/2, avgGx(:) * quiverScale, avgGy(:) * quiverScale, 'Color', 'r');
-% 
-% hold off;
-% drawnow;
+figure;
+imshow(grayImg);
+hold on;
+
+% Display quiver plot with longer quivers
+quiverScale = 10;  % Adjust this value to control quiver length
+quiver(x(:) * windowSize - windowSize/2, y(:) * windowSize - windowSize/2, avgGx(:) * quiverScale, avgGy(:) * quiverScale, 'Color', 'r');
+
+hold off;
+drawnow;
 
 
 
